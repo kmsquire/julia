@@ -78,11 +78,11 @@ include("char.jl")
 include("ascii.jl")
 include("utf8.jl")
 include("string.jl")
+include("iostring.jl")
 include("regex.jl")
 include("show.jl")
 include("grisu.jl")
 include("printf.jl")
-include("iostring.jl")
 
 # concurrency and parallelism
 include("iterator.jl")
