@@ -82,6 +82,7 @@ include("regex.jl")
 include("show.jl")
 include("grisu.jl")
 include("printf.jl")
+include("iostring.jl")
 
 # concurrency and parallelism
 include("iterator.jl")

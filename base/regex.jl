@@ -43,7 +43,7 @@ copy(r::Regex) = r
 # where the first two bytes in each record hold the index, and the remaining bytes
 # hold the \0-terminated name string
 
-include("iostring.jl")
+#include("iostring.jl")
 
 function pcre_name_table(re::Array{Uint8}, ex::Ptr{Void})
     name_table_dict = Dict{String, Int}()

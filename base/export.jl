@@ -40,6 +40,7 @@ export
     GlobalObject,
     IO,
     IOStream,
+    IOString,
     ImaginaryUnit,
     Indices,
     IntSet,
