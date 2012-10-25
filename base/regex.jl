@@ -7,6 +7,7 @@ type Regex
     options::Int32
     regex::Array{Uint8}
     extra::Ptr{Void}
+    name_table::Dict{String, Int}
 
     function Regex(pat::String, opts::Integer, study::Bool)
         pat = bytestring(pat); opts = int32(opts)
@@ -15,7 +16,8 @@ type Regex
         end
         re = PCRE.compile(pat, opts & PCRE.COMPILE_MASK)
         ex = study ? PCRE.study(re) : C_NULL
-        new(pat, opts, re, ex)
+        names = pcre_name_table(re, ex)
+        new(pat, opts, re, ex, names)
     end
 end
 Regex(p::String, s::Bool)    = Regex(p, 0, s)
@@ -23,6 +25,48 @@ Regex(p::String, o::Integer) = Regex(p, o, false)
 Regex(p::String)             = Regex(p, 0, false)
 
 copy(r::Regex) = r
+
+# Returns the name => index mapping for named regular expressions in Regex r
+#
+# According to the pcreapi man page, the name table for 
+#
+#         (?<date> (?<year>(\d\d)?\d\d) -
+#         (?<month>\d\d) - (?<day>\d\d) )
+#
+# is stored as
+#
+#         00 01 d  a  t  e  00 ??
+#         00 05 d  a  y  00 ?? ??
+#         00 04 m  o  n  t  h  00
+#         00 02 y  e  a  r  00 ??
+#
+# where the first two bytes in each record hold the index, and the remaining bytes
+# hold the \0-terminated name string
+
+include("iostring.jl")
+
+function pcre_name_table(re::Array{Uint8}, ex::Ptr{Void})
+    name_table_dict = Dict{String, Int}()
+    name_count = int(PCRE.info(re, ex, PCRE.INFO_NAMECOUNT, Int32))
+
+    if name_count > 0
+        name_entry_size = int(PCRE.info(re, ex, PCRE.INFO_NAMEENTRYSIZE, Int32))
+        name_table_ptr = PCRE.info(re, ex, PCRE.INFO_NAMETABLE, Ptr{Uint8})
+
+        name_table = pointer_to_array(name_table_ptr, (name_entry_size, name_count))
+
+        for n = 1:name_count
+            ios = IOString(name_table[:, n])
+            # TODO: this needs to be checked on a big-endian machine...
+            idx = ntoh(read(ios, Int16))
+            name = chop(readuntil(ios, '\0'))
+            name_table_dict[name] = idx
+        end
+    end
+
+    name_table_dict
+end
+
 
 # TODO: make sure thing are escaped in a way PCRE
 # likes so that Julia all the Julia string quoting
@@ -66,6 +110,7 @@ type RegexMatch
     captures::Tuple
     offset::Int
     offsets::Vector{Int}
+    capture_dict::Dict{String, String}
 end
 
 function show(io, m::RegexMatch)
@@ -97,7 +142,8 @@ function match(re::Regex, str::ByteString, idx::Integer, opts::Integer)
     mat = str[m[1]+1:m[2]]
     cap = ntuple(n, i->(m[2i+1] < 0 ? nothing : str[m[2i+1]+1:m[2i+2]]))
     off = [ m[2i+1]::Int32+1 for i=1:n ]
-    RegexMatch(mat, cap, m[1]+1, off)
+    cap_dict = dict(tuple(keys(re.name_table)...), tuple([cap[v] for v in values(re.name_table)]...))
+    RegexMatch(mat, cap, m[1]+1, off, cap_dict)
 end
 match(r::Regex, s::String, i::Integer, o::Integer) = match(r, bytestring(s), i, o)
 match(r::Regex, s::String, i::Integer) = match(r, s, i, r.options & PCRE.EXECUTE_MASK)
