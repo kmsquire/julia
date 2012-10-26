@@ -110,7 +110,7 @@ type RegexMatch
     captures::Tuple
     offset::Int
     offsets::Vector{Int}
-    capture_dict::Dict{String, String}
+    capture_dict::Dict
 end
 
 function show(io, m::RegexMatch)
@@ -142,7 +142,11 @@ function match(re::Regex, str::ByteString, idx::Integer, opts::Integer)
     mat = str[m[1]+1:m[2]]
     cap = ntuple(n, i->(m[2i+1] < 0 ? nothing : str[m[2i+1]+1:m[2i+2]]))
     off = [ m[2i+1]::Int32+1 for i=1:n ]
-    cap_dict = dict(tuple(keys(re.name_table)...), tuple([cap[v] for v in values(re.name_table)]...))
+    cap_dict = if !isempty(re.name_table)
+        dict(tuple(keys(re.name_table)...), tuple([cap[v] for v in values(re.name_table)]...))
+    else
+        Dict()
+    end
     RegexMatch(mat, cap, m[1]+1, off, cap_dict)
 end
 match(r::Regex, s::String, i::Integer, o::Integer) = match(r, bytestring(s), i, o)
