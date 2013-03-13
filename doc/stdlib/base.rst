@@ -232,7 +232,7 @@ The ``state`` object may be anything, and should be chosen appropriately for eac
    Return an iterator that yields ``(i, x)`` where ``i`` is an index starting at 1,
    and ``x`` is the ``ith`` value from the given iterator.
 
-Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``EachLine``, ``String``, ``Set``, ``Task``.
+Fully implemented by: ``Range``, ``Range1``, ``NDRange``, ``Tuple``, ``Real``, ``AbstractArray``, ``IntSet``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``OrderedDict``, ``EachLine``, ``String``, ``Set``, ``Task``.
 
 General Collections
 -------------------
@@ -255,7 +255,7 @@ General Collections
    
    **Example**: ``endof([1,2,4]) = 3``
 
-Fully implemented by: ``Range``, ``Range1``, ``Tuple``, ``Number``, ``AbstractArray``, ``IntSet``, ``Dict``, ``WeakKeyDict``, ``String``, ``Set``.
+Fully implemented by: ``Range``, ``Range1``, ``Tuple``, ``Number``, ``AbstractArray``, ``IntSet``, ``Dict``, ``OrderedDict``, ``WeakKeyDict``, ``String``, ``Set``.
 
 Iterable Collections
 --------------------
@@ -316,14 +316,6 @@ Iterable Collections
 
    Test whether all elements of a boolean collection are true
 
-.. function:: count(itr) -> Integer
-
-   Count the number of boolean elements in ``itr`` which are true.
-
-.. function:: countp(p, itr) -> Integer
-
-   Count the number of elements in ``itr`` for which predicate ``p`` is true.
-
 .. function:: any(p, itr) -> Bool
 
    Determine whether any element of ``itr`` satisfies the given predicate.
@@ -371,9 +363,22 @@ Indexable Collections
    The syntax ``a[i,j,...] = x`` is converted by the compiler to
    ``setindex!(a, x, i, j, ...)``.
 
-Fully implemented by: ``Array``, ``DArray``, ``AbstractArray``, ``SubArray``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``String``.
+Fully implemented by: ``Array``, ``DArray``, ``AbstractArray``, ``SubArray``, ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``OrderedDict``, ``String``.
 
 Partially implemented by: ``Range``, ``Range1``, ``Tuple``.
+
+Ordered Collections
+-------------------
+
+.. function:: getitem(collection, index)
+
+   Returns the item located at an index (an integer) in an ordered collection.
+
+.. function:: indexof(collection, key)
+
+   Returns the sequential index of an item or key in an ordered collection.
+
+Fully implemented by: ``OrderedDict``
 
 Associative Collections
 -----------------------
@@ -390,6 +395,10 @@ As with arrays, ``Dicts`` may be created with comprehensions. For example,
 .. function:: Dict{K,V}()
 
    Construct a hashtable with keys of type K and values of type V
+
+.. function:: OrderedDict{K,V}()
+
+   Construct a hashtable with keys of type K and values of type V, and in which the key-value pairs are ordered.
 
 .. function:: has(collection, key)
 
@@ -443,7 +452,7 @@ As with arrays, ``Dicts`` may be created with comprehensions. For example,
 
    Suggest that collection ``s`` reserve capacity for at least ``n`` elements. This can improve performance.
    
-Fully implemented by: ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``.
+Fully implemented by: ``ObjectIdDict``, ``Dict``, ``WeakKeyDict``, ``OrderedDict``
 
 Partially implemented by: ``IntSet``, ``Set``, ``EnvHash``, ``Array``.
 
@@ -557,7 +566,7 @@ Dequeues
 
    Add the elements of ``items`` to the end of a collection.
 
-Fully implemented by: ``Vector`` (aka 1-d ``Array``).
+Fully implemented by: ``Vector`` (aka 1-d ``Array``).  Partially implemented by ``OrderedDict``
 
 Strings
 -------
