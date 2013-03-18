@@ -40,6 +40,8 @@
 #   reverse!(od)         # reverses od in-place
 #   reverse(od)          # creates a reversed copy of od
 
+
+
 ###################
 ## DictItem type ##
 
@@ -49,23 +51,106 @@ type DictItem{K,V}
     idx::Int
 end
 
+#######################
+## DictOrdering type ##
+
+immutable type HashOrdering{K,V} <: AbstractArray
+    ord::Vector{DictItem{K,V}}
+    ord_slots::BitArray
+    ndel::Int
+    ht::Associative{K,V}
+end
+
+push!(ho::HashOrdering, item) = (push!(ord_slots, true); push!(ho.ord, item))
+length(ho::HashOrdering) == length(ho.ord)
+
+###############
+## Iteration ##
+
+skip_deleted(d::HashOrdering, i) = findnext(d.ord_slots, i)
+
+start(d::HashOrdering) = length(d.ord_slots) > 0 && skip_deleted(d,1)
+done(d::HashOrdering, i) = (i == 0)
+next(d::HashOrdering, i) = ((item=d.ord[i]; (item.k, item.v)), skip_deleted(d,i+1))
+
+#########################
+## General Collections ##
+
+function empty!(d::HashOrdering)
+    empty!(d.ord)
+    empty!(d.ord_slots)
+    d.ndel = 0
+end
+
+###########################
+## Indexable Collections ##
+
+function setindex!{K,V}(h::HashOrdering{K,V}, kv::(Any,Any), index::Integer)
+    (key,v) = kv
+    ord_idx = indexof(h,key,0)
+    if ord_idx == index
+        return setindex!(h.ht, v, key)
+    end
+    # TODO: this can made be more efficient
+    delete!(h.ht, getitem(h, index)[1])
+    insert!(h, index, kv)
+end
+
+indexof{K,V}(h::HashOrdering{K,V}, key)        = (_compact(h); h.ht[key].idx)
+indexof{K,V}(h::HashOrdering{K,V}, key, deflt) = has(h.ht, key) ? indexof(h, key) : deflt
+
+
+####################################
+## HashOrdering Utility functions ##
+
+# Removes empty slots of order array in OrderedDict
+function _compact(d::HashOrdering)
+    d.ndel == 0 && return
+
+    ord = d.ord
+    slots = d.ord_slots
+
+    # start with first empty slot
+    s_pos = findfirstnot(slots)
+    ord_pos = findnext(slots, s_pos)
+    
+    # fill down empty slots with consecutive filled slots
+    while ord_pos != 0
+        item = ord[s_pos] = ord[ord_pos]
+        item.idx = s_pos
+        
+        s_pos += 1
+        ord_pos = findnext(slots, ord_pos+1)
+    end
+    
+    new_sz = length(d)
+    resize!(d.ord, new_sz)
+    resize!(d.ord_slots, new_sz)
+    slots[1:end] = true
+    d.ndel = 0
+
+    nothing
+end
+
+
+
 ######################
 ## OrderedDict type ##
 
 type OrderedDict{K,V} <: Associative{K,V}
     ht::Dict{K,DictItem{K,V}}
-    ord::Vector{DictItem{K,V}}
-    ord_slots::BitArray
-    ndel::Int
+    order::HashOrdering{K,V}
 
-    OrderedDict() = new(Dict{K,DictItem{K,V}}(), similar(Array(DictItem{K,V},1), 0), BitArray(), 0)
+    function OrderedDict()
+        ht = Dict{K,DictItem{K,V}}()
+        new(ht, HashOrdering(similar(Array(DictItem{K,V},1), 0), BitArray(), 0, ht))
+    end
     function OrderedDict(ks,vs)
-        d = new(Dict{K,DictItem{K,V}}(), similar(Array(DictItem{K,V},1), 0), BitArray(), 0)
+        d = OrderedDict()
         for (i, (k, v)) in enumerate(zip(ks, vs))
             item = DictItem{K,V}(k,v,i)
             d.ht[k] = item
-            push!(d.ord, item)
-            push!(d.ord_slots, true)
+            push!(d.order, item)
         end
         d
     end
@@ -111,59 +196,19 @@ function deserialize{K,V}(s, T::Type{OrderedDict{K,V}})
     return t
 end
 
-########################################
-## OrderedDict Utility functions ##
-
-# Removes empty slots of order array in OrderedDict
-function _compact(d::OrderedDict)
-    d.ndel == 0 && return
-
-    ord = d.ord
-    slots = d.ord_slots
-
-    # start with first empty slot
-    s_pos = findfirstnot(slots)
-    ord_pos = findnext(slots, s_pos)
-    
-    # fill down empty slots with consecutive filled slots
-    while ord_pos != 0
-        item = ord[s_pos] = ord[ord_pos]
-        item.idx = s_pos
-        
-        s_pos += 1
-        ord_pos = findnext(slots, ord_pos+1)
-    end
-    
-    new_sz = length(d)
-    resize!(d.ord, new_sz)
-    resize!(d.ord_slots, new_sz)
-    slots[1:end] = true
-    d.ndel = 0
-
-    nothing
-end
-
 ###############
 ## Iteration ##
 
-skip_deleted(d::OrderedDict, i) = findnext(d.ord_slots, i)
-
-start(d::OrderedDict) = length(d.ord_slots) > 0 && skip_deleted(d,1)
-done(d::OrderedDict, i) = (i == 0)
-next(d::OrderedDict, i) = ((item=d.ord[i]; (item.k, item.v)), skip_deleted(d,i+1))
+start(d::OrderedDict) = start(d.order)
+done(d::OrderedDict, i) = done(d.order, i)
+next(d::OrderedDict, i) = next(d.order, i)
 
 #########################
 ## General Collections ##
 
 isempty(d::OrderedDict) = isempty(d.ht)
 length(d::OrderedDict) = length(d.ht)      # d.ord may have empty slots
-
-function empty!(d::OrderedDict)
-    empty!(d.ht)
-    empty!(d.ord)
-    empty!(d.ord_slots)
-    d.ndel = 0
-end
+empty!(d::OrderedDict) = (empty!(d.ht); empty!(d.order); d)
 
 ###########################
 ## Indexable Collections ##
@@ -172,17 +217,16 @@ end
 # but we ignore this when K<:Number
 function setindex!{K,V}(d::OrderedDict{K,V}, v, key)
     # 3/4 deleted?
-    if d.ndel >= ((3*length(d))>>2)
-        _compact(d)
+    if d.order.ndel >= ((3*length(d.order))>>2)
+        _compact(d.order)
     end
 
     if has(d, key)
         d.ht[key].v = v
     else
-        item = DictItem{K,V}(key, v, length(d.ord)+1)
+        item = DictItem{K,V}(key, v, length(d.order)+1)
         d.ht[key] = item
-        push!(d.ord, item)
-        push!(d.ord_slots, true)
+        push!(d.order, item)
     end
     d
 end
@@ -215,7 +259,7 @@ getindex{K,        V}(h::OrderedDict{K,V}, key)              = getindex(h.ht, ke
 getindex{K,        V}(h::OrderedDict{K,V}, ord_idx::Integer) = getitem(h, ord_idx)
 getindex{K<:Number,V}(h::OrderedDict{K,V}, key::Integer)     = getindex(h.ht, key).v
 
-indexof{K,V}(h::OrderedDict{K,V}, key)        = (_compact(h); h.ht[key].idx)
+indexof{K,V}(h::OrderedDict{K,V}, key)        = (_compact(h.order); h.ht[key].idx)
 indexof{K,V}(h::OrderedDict{K,V}, key, deflt) = has(h.ht, key) ? indexof(h, key) : deflt
 findfirst(h::OrderedDict, v) = indexof(h, v, 0)
 findnext(h::OrderedDict, v, start::Int) = (idx=indexof(h,v,0); idx >= start? idx : 0)
@@ -225,7 +269,7 @@ last(h::OrderedDict) = getitem(h, length(h))
 endof(h::OrderedDict) = length(h)
 
 function reverse!(h::OrderedDict)
-    _compact(h)
+    _compact(h.order)
     reverse!(h.ord)
     _update_order(h, 1, length(h))
     h
@@ -234,7 +278,7 @@ end
 function reverse(h::OrderedDict)
     d = similar(h)
     sizehint(d, length(h.ht.slots))
-    _compact(h)
+    _compact(h.order)
     for item in reverse(h.ord)
         d[item.k] = item.v
     end
@@ -248,7 +292,7 @@ has{K,V}(d::OrderedDict{K,V}, key) = has(d.ht, key)
 
 get{K,V}(d::OrderedDict{K,V}, key, default) = has(d, key) ? d[key] : default
 getkey{K,V}(d::OrderedDict{K,V}, key, default) = has(d, key) ? key : default
-getitem{K,V}(h::OrderedDict{K,V}, idx::Int) = (_compact(h); item = h.ord[idx]; (item.k, item.v))
+getitem{K,V}(h::OrderedDict{K,V}, idx::Int) = (_compact(h.order); item = h.ord[idx]; (item.k, item.v))
 
 function delete!{K,V}(d::OrderedDict{K,V}, key)
     item = d.ht[key]
@@ -281,7 +325,7 @@ function pop!{K,V}(d::OrderedDict{K,V})
     if isempty(d)
         error("pop!: OrderedDict is empty")
     end
-    _compact(d)
+    _compact(d.order)
     key = d.ord[end].k
     (key, delete!(d,key))::(K,V)
 end
@@ -361,7 +405,7 @@ end
 import Sort.Ordering, Sort.Algorithm
 
 function sort!(h::OrderedDict, args...)
-    _compact(h)
+    _compact(h.order)
     p = sortperm(keys(h), args...)
     h.ord[:] = h.ord[p]
     _update_order(h, 1, length(h))
