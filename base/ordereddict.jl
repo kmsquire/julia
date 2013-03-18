@@ -40,6 +40,26 @@
 #   reverse!(od)         # reverses od in-place
 #   reverse(od)          # creates a reversed copy of od
 
+type HashOrdering{E, D<:AbstractHashTable} <: AbstractVector{E}
+    ord_slots::BitArray
+    odel::Int
+    ord::Array{Int,1}
+    d::OrderedDict
+end
+
+getindex{K,V}(do::DictOrdering{K,V}, i::Integer) = (hash_idx = do.ord[i]; (d.keys[hash_idx], d.vals[hash_idx]))
+
+function setindex!{K,V}(do::DictOrdering{K,V}, kv::(Any,Any), ii::Integer)
+    (key,v) = kv
+    ord_idx = indexof(h,key,0)          # calls _compact(h), so not needed here
+    if ord_idx == index
+        return setindex!(h, v, key)
+    end
+    # TODO: this can be more efficient
+    delete!(h, h.keys[h.ord[index]])
+    insert!(h, index, kv)
+end
+
 ######################
 ## OrderedDict type ##
 
@@ -47,16 +67,14 @@ type OrderedDict{K,V} <: AbstractHashDict{K,V}
     slots::Array{Uint8,1}
     keys::Array{K,1}
     vals::Array{V,1}
-    ord_idxs::Array{Int,1}
-    ord_slots::BitArray
-    ord::Array{Int,1}
+    idxs::Array{Int,1}
+    order::DictOrdering{K,V}
     ndel::Int
-    odel::Int
     count::Int
 
     function OrderedDict()
         n = 16
-        new(zeros(Uint8,n), Array(K,n), Array(V,n), Array(Int,n), BitArray(), Array(Int,0), 0, 0, 0)
+        new(zeros(Uint8,n), Array(K,n), Array(V,n), Array(Int,n), DictOrdering(BitArray(), 0, Array(Int,0), 0, 0, 0)
     end
     function OrderedDict(ks, vs)
         n = length(ks)
