@@ -51,13 +51,13 @@ getindex{K,V}(do::DictOrdering{K,V}, i::Integer) = (hash_idx = do.ord[i]; (d.key
 
 function setindex!{K,V}(do::DictOrdering{K,V}, kv::(Any,Any), ii::Integer)
     (key,v) = kv
-    ord_idx = indexof(h,key,0)          # calls _compact(h), so not needed here
+    ord_idx = indexof(do.d,key,0)          # calls _compact(h), so not needed here
     if ord_idx == index
         return setindex!(h, v, key)
     end
     # TODO: this can be more efficient
-    delete!(h, h.keys[h.ord[index]])
-    insert!(h, index, kv)
+    delete!(do.d, h.keys[h.ord[index]])
+    insert!(do.d, index, kv)
 end
 
 ######################
@@ -68,9 +68,9 @@ type OrderedDict{K,V} <: AbstractHashDict{K,V}
     keys::Array{K,1}
     vals::Array{V,1}
     idxs::Array{Int,1}
-    order::DictOrdering{K,V}
     ndel::Int
     count::Int
+    order::DictOrdering{K,V}
 
     function OrderedDict()
         n = 16
@@ -79,6 +79,7 @@ type OrderedDict{K,V} <: AbstractHashDict{K,V}
     function OrderedDict(ks, vs)
         n = length(ks)
         h = OrderedDict{K,V}()
+        sizehint(h, n<<1)
         for i=1:n
             h[ks[i]] = vs[i]
         end
