@@ -44,55 +44,43 @@
 ###################
 ## DictItem type ##
 
-type DictItem{K,V}
+type DictItem{K,V} <: (K,V)
     k::K
     v::V
     idx::Int
 end
 
+convert{K,V}(::}, d::DictItem{Any, Any}) = (convert(K,d.k), convert(V,d.v))
+
 #######################
 ## DictOrdering type ##
 
-type DictOrdering{K,V,OD} <: AbstractVector{(K,V)}
+type DictOrdering{K,V} <: AbstractVector{(K,V)}
     items::AbstractVector{DictItem{K,V}}
-    slots::BitArray
-    ndel::Int
-    ht::OD
 end
 
-function _push!{K,V,OD}(h::DictOrdering{K,V,OD}, item::DictItem{K,V})
-    push!(h.slots, true)
-    push!(h.items, item)
-end
+push!{K,V}(h::DictOrdering{K,V}, item::DictItem{K,V}) = push!(h.items, item)
 length(h::DictOrdering) = length(h.ht)
 
 ###############
 ## Iteration ##
 
-skip_deleted(h::DictOrdering, i) = findnext(h.slots, i)
-
-start(h::DictOrdering) = length(h.slots) > 0 && skip_deleted(h,1)
-done(h::DictOrdering, i) = (i == 0)
-next(h::DictOrdering, i) = (item=h.items[i]; ((item.k, item.v), skip_deleted(h,i+1)))
+start(h::DictOrdering) = start(h.items)
+done(h::DictOrdering, i) = done(h.items, i)
+next(h::DictOrdering, i) = ((item, state) = next(h, i); ((item.k, item.v), state))
 
 #########################
 ## General Collections ##
 
-function empty!(h::DictOrdering)
-    empty!(h.items)
-    empty!(h.slots)
-    h.ndel = 0
-end
+empty!(h::DictOrdering) = empty!(h.items)
 
 ###########################
 ## Indexable Collections ##
-function getindex{K,V,OD}(h::DictOrdering{K,V,OD}, idx::Real)
-    _compact!(h)
-    item = h.items[idx]
-    (item.k, item.v)
-end
+getindex{K,V}(h::DictOrdering{K,V}, idx::Real) = getindex(h.items, idx)::(K,V)
+getindex{K,V}(h::DictOrdering{K,V}, r::Range) = [d::(K,V) for d in getindex(h.items, r)]
 
-function setindex!{K,V,OD}(h::DictOrdering{K,V,OD}, kv::(Any,Any), index::Real)
+setindex!{K,V}(h::DictOrdering{K,V}, ) = setindex!(h.items, d, idx)
+function setindex!{K,V}(h::DictOrdering{K,V}, kv::(Any,Any), index::Real)
     (key,v) = kv
     if indexof(h,key,0) == index
         h.items[index].k = v
@@ -121,7 +109,7 @@ function reverse(h::DictOrdering)
 end
 
 # Internal: do not compact, return DictItem(k,v,idx)
-function _delete!{K,V,OD}(h::DictOrdering{K,V,OD}, item_idx::Real)
+function _delete!{K,V}(h::DictOrdering{K,V}, item_idx::Real)
     item = h.items[item_idx]
     ccall(:jl_arrayunset, Void, (Any, Uint), h.items, item_idx-1)
     h.slots[item_idx] = false
@@ -130,7 +118,7 @@ function _delete!{K,V,OD}(h::DictOrdering{K,V,OD}, item_idx::Real)
 end
 
 # External: compact, return (k, v)
-function delete!{K,V,OD}(h::DictOrdering{K,V,OD}, index::Real)
+function delete!{K,V}(h::DictOrdering{K,V}, index::Real)
     _compact!(h)
     item = _delete!(h, index)
     _delete!(h.ht, item.k)
@@ -141,10 +129,10 @@ end
 ## Dequeue-like ##
 
 # Add key-value pair at last slot
-push!{K,V,OD}(d::DictOrdering{K,V,OD}, item) = insert!(d, length(d)+1, item)
+push!{K,V}(d::DictOrdering{K,V}, item) = insert!(d, length(d)+1, item)
 
 # Remove and return last key-value pair
-function pop!{K,V,OD}(d::DictOrdering{K,V,OD})
+function pop!{K,V}(d::DictOrdering{K,V})
     if isempty(d)
         error("pop!: DictOrdering is empty")
     end
@@ -155,10 +143,10 @@ function pop!{K,V,OD}(d::DictOrdering{K,V,OD})
 end
 
 # Put key-value pair at front of dict
-unshift!{K,V,OD}(d::DictOrdering{K,V,OD}, item) = insert!(d, 1, item)
+unshift!{K,V}(d::DictOrdering{K,V}, item) = insert!(d, 1, item)
 
 # Remove and return first key-value pair
-function shift!{K,V,OD}(d::DictOrdering{K,V,OD})
+function shift!{K,V}(d::DictOrdering{K,V})
     if isempty(d)
         error("shift!: ",typeof(d.ht)," is empty")
     end
@@ -171,7 +159,7 @@ end
 # TODO: prepend
 
 # Add multiple items to dictionary, at end
-function append!{K,V,OD}(h::DictOrdering{K,V,OD}, items)
+function append!{K,V}(h::DictOrdering{K,V}, items)
     for item in items
         push!(h, item)
     end
@@ -181,7 +169,7 @@ end
 # Add item to dictionary at a particular linear location
 # Note that if the key already exists in the dictionary, it is removed
 # first, and this might decrement the inserted position by one
-function insert!{K,V,OD}(h::DictOrdering{K,V,OD}, index::Integer, item::(Any,Any))
+function insert!{K,V}(h::DictOrdering{K,V}, index::Integer, item::(Any,Any))
     (key,v) = item
     # Do we need to subtract 1 from index?
     cur_index = indexof(h, key, 0)
@@ -205,8 +193,8 @@ end
 ####################################
 ## DictOrdering Utility functions ##
 
-indexof{K,V,OD}(h::DictOrdering{K,V,OD}, key)        = (_compact!(h); _getitem(h.ht, key).idx)
-indexof{K,V,OD}(h::DictOrdering{K,V,OD}, key, deflt) = has(h.ht, key) ? indexof(h, key) : deflt
+indexof{K,V}(h::DictOrdering{K,V}, key)        = (_compact!(h); _getitem(h.ht, key).idx)
+indexof{K,V}(h::DictOrdering{K,V}, key, deflt) = has(h.ht, key) ? indexof(h, key) : deflt
 
 # Removes empty slots of order array in OrderedDict
 function _compact!(h::DictOrdering)
@@ -277,8 +265,8 @@ function sort!(h::DictOrdering, args...)
 end
 
 # Force stable sort by default, even for numerical keys
-sort!{K<:Number,V,OD}(h::DictOrdering{K,V,OD}, o::Ordering) = sort!(h, DEFAULT_STABLE, o)
-sort {K<:Number,V,OD}(h::DictOrdering{K,V,OD}, o::Ordering) = sort (h, DEFAULT_STABLE, o)
+sort!{K<:Number,V}(h::DictOrdering{K,V}, o::Ordering) = sort!(h, DEFAULT_STABLE, o)
+sort {K<:Number,V}(h::DictOrdering{K,V}, o::Ordering) = sort (h, DEFAULT_STABLE, o)
 
 sortperm(h::DictOrdering, args...) = sortperm(keys(h.ht), args...)
 
