@@ -328,6 +328,7 @@ function rehash{K,V}(h::Dict{K,V}, newsz)
 
     return h
 end
+rehash(h::Dict) = (sz = length(h.keys); rehash(h, h.count > 64000 ? sz<<1 : sz<<2))
 
 function sizehint(d::Dict, newsz)
     oldsz = length(d.slots)
@@ -352,81 +353,54 @@ function empty!{K,V}(h::Dict{K,V})
     return h
 end
 
-function setindex!{K,V}(h::Dict{K,V}, v, key)
-    key = convert(K,key)
-    v   = convert(V,  v)
-
-    sz = length(h.keys)
-
-    if h.ndel >= ((3*sz)>>2) || h.count*3 > sz*2
-        # > 3/4 deleted or > 2/3 full
-        rehash(h, h.count > 64000 ? h.count*2 : h.count*4)
-        sz = length(h.keys)  # rehash may resize the table at this point!
-    end
-
-    iter = 0
-    maxprobe = max(16, sz>>6)
-    index = hashindex(key, sz)
-    orig = index
-    avail = -1  # an available slot
-    keys = h.keys; vals = h.vals
-
-    while true
-        if isslotempty(h,index)
-            if avail > 0; index = avail; end
-            h.slots[index] = 0x1
-            h.keys[index] = key
-            h.vals[index] = v
-            h.count += 1
-            return h
-        end
-
-        if isslotmissing(h,index)
-            if avail<0
-                # found an available slot, but need to keep scanning
-                # in case "key" already exists in a later collided slot.
-                avail = index
-            end
-        elseif isequal(key, keys[index])
-            vals[index] = v
-            return h
-        end
-
-        index = (index & (sz-1)) + 1
-        iter+=1
-        if iter > maxprobe || index==orig
-            break
-        end
-    end
-
-    if avail>0
-        index = avail
-        h.slots[index] = 0x1
-        h.keys[index] = key
-        h.vals[index] = v
+function ht_setindex!{K,V}(h::Dict{K,V}, v, key, index::Integer)
+    if index < 0
+        index = -index
         h.count += 1
-        return h
+        h.slots[index] = 0x1
+        h.keys[index] = convert(K,key)
     end
-
-    rehash(h, h.count > 64000 ? sz*2 : sz*4)
-
-    setindex!(h, v, key)
+    h.vals[index] = convert(V, v)
+    return h    
 end
 
-# get the index where a key is stored, or -1 if not present
-function ht_keyindex{K,V}(h::Dict{K,V}, key)
+ht_getindex{K,V}(h::Dict{K,V}, index::Integer) = h.vals[index]
+
+function check_rehash(h::Dict)
     sz = length(h.keys)
+    # 3/4 empty or 2/3 full
+    if h.ndel >= ((3*sz)>>2) || h.count*3 > sz<<1
+        rehash(h)
+    end
+end
+
+function setindex!{K,V}(h::Dict{K,V}, v, key)
+    check_rehash(h)
+    index = ht_keyindex(h, key)
+    index == 0 ? (rehash(h); setindex!(h, v, key)) : ht_setindex!(h, v, key, index)
+end
+
+# get the index where a key is stored.
+# returns (-index) for the slot the key
+# would go in if it is not found
+function ht_keyindex{K,V}(h::Dict{K,V}, key)
+    keys = h.keys
+    sz = length(keys)
     iter = 0
     maxprobe = max(16, sz>>6)
     index = hashindex(key, sz)
     orig = index
-    keys = h.keys
+    avail = 0
 
     while true
         if isslotempty(h,index)
-            break
+            return avail > 0 ? -avail : -index
         end
-        if !isslotmissing(h,index) && isequal(key,keys[index])
+        if isslotmissing(h,index)
+            if avail == 0
+                avail = index
+            end
+        elseif isequal(key,keys[index])
             return index
         end
 
@@ -437,24 +411,24 @@ function ht_keyindex{K,V}(h::Dict{K,V}, key)
         end
     end
 
-    return -1
+    return -avail
 end
 
 function getindex{K,V}(h::Dict{K,V}, key)
     index = ht_keyindex(h, key)
-    return (index<0) ? throw(KeyError(key)) : h.vals[index]::V
+    return (index<=0) ? throw(KeyError(key)) : h.vals[index]::V
 end
 
 function get{K,V}(h::Dict{K,V}, key, deflt)
     index = ht_keyindex(h, key)
-    return (index<0) ? deflt : h.vals[index]::V
+    return (index<=0) ? deflt : h.vals[index]::V
 end
 
-has(h::Dict, key) = (ht_keyindex(h, key) >= 0)
+has(h::Dict, key) = (ht_keyindex(h, key) > 0)
 
 function getkey{K,V}(h::Dict{K,V}, key, deflt)
     index = ht_keyindex(h, key)
-    return (index<0) ? deflt : h.keys[index]::K
+    return (index<=0) ? deflt : h.keys[index]::K
 end
 
 function _delete!(h::Dict, index)
