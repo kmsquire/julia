@@ -77,6 +77,7 @@ read{T}(from::IOBuffer, ::Type{Ptr{T}}) = convert(Ptr{T}, read(from, Uint))
 # This should maybe be sizeof() instead.
 #length(io::IOBuffer) = (io.seekable ? io.size : nb_available(io))
 nb_available(io::IOBuffer) = io.size - io.ptr + 1
+nb_writable(io::IOBuffer) = io.maxsize - io.ptr + 1
 skip(io::IOBuffer, n::Integer) = (io.ptr = min(io.ptr + n, io.size+1))
 function seek(io::IOBuffer, n::Integer)
     if !io.seekable error("seek failed") end
