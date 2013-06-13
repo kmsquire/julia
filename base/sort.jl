@@ -20,6 +20,7 @@ export # also exported by Base
     searchsortedlast,
     InsertionSort,
     QuickSort,
+    DualPivotQuickSort,
     MergeSort,
     TimSort
 
@@ -213,15 +214,17 @@ searchsorted{T <: Real}(a::Ranges{T}, x::Real) = searchsortedfirst(a,x):searchso
 
 abstract Algorithm
 
-type InsertionSortAlg <: Algorithm end
-type QuickSortAlg     <: Algorithm end
-type MergeSortAlg     <: Algorithm end
-type TimSortAlg       <: Algorithm end
+type InsertionSortAlg      <: Algorithm end
+type QuickSortAlg          <: Algorithm end
+type DualPivotQuickSortAlg <: Algorithm end
+type MergeSortAlg          <: Algorithm end
+type TimSortAlg            <: Algorithm end
 
-const InsertionSort = InsertionSortAlg()
-const QuickSort     = QuickSortAlg()
-const MergeSort     = MergeSortAlg()
-const TimSort       = TimSortAlg()
+const InsertionSort      = InsertionSortAlg()
+const QuickSort          = QuickSortAlg()
+const DualPivotQuickSort = DualPivotQuickSortAlg()
+const MergeSort          = MergeSortAlg()
+const TimSort            = TimSortAlg()
 
 const DEFAULT_UNSTABLE = QuickSort
 const DEFAULT_STABLE   = MergeSort
@@ -268,6 +271,41 @@ function sort!(v::AbstractVector, lo::Int, hi::Int, a::QuickSortAlg, o::Ordering
         end
         lo < j && sort!(v, lo, j, a, o)
         lo = i
+    end
+    return v
+end
+
+function sort!(v::AbstractVector, lo::Int, hi::Int, a::DualPivotQuickSortAlg, o::Ordering)
+    global ik
+    while lo < hi
+        hi-lo <= SMALL_THRESHOLD && return sort!(v, lo, hi, SMALL_ALGORITHM, o)
+        # dual pivots at extremes
+        if lt(o, v[hi], v[lo]); v[lo],v[hi] = v[hi],v[lo]; end
+        p,q = v[lo], v[hi]
+        i,j = lo+1, hi-1
+        k = i
+        while k <= j
+            if lt(o, v[k], p)
+                v[k],v[i] = v[i],v[k]
+                i += 1
+            elseif lt(o, q, v[k])
+                while lt(o, q, v[j]) && k < j; j -= 1; end
+                v[k],v[j] = v[j],v[k]
+                j -= 1
+                if lt(o, v[k], p)
+                    v[k],v[i] = v[i],v[k]
+                    i += 1
+                end
+            end
+            k += 1
+        end
+        i -= 1; j += 1
+        v[lo],v[i] = v[i],v[lo]
+        v[hi],v[j] = v[j],v[hi]
+        lo < i-1 && sort!(v, lo,  i-1, a, o)
+        hi > j+1 && sort!(v, j+1,  hi, a, o)
+        lo = i+1
+        hi = j-1
     end
     return v
 end
@@ -455,6 +493,24 @@ function fpsort!(v::AbstractVector, a::Algorithm, o::Ordering)
 end
 sort!{T<:Floats}(v::AbstractVector{T}, a::Algorithm, o::Direct) = fpsort!(v, a, o)
 sort!{O<:Direct,T<:Floats}(v::Vector{Int}, a::Algorithm, o::Perm{O,Vector{T}}) = fpsort!(v, a, o)
+
+function fpsort!(v::AbstractVector, a::Algorithm, o::Ordering)
+    i, j = lo, hi = nans2end!(v,o)
+    while true
+        while i <= j &&  issignleft(o, v[i]); i += 1; end
+        while i <= j && !issignleft(o, v[j]); j -= 1; end
+        if i <= j
+            v[i], v[j] = v[j], v[i]
+            i += 1
+            j -= 1
+        else
+            break
+        end
+    end
+    sort!(v, lo, j,  a, left(o))
+    sort!(v, i,  hi, a, right(o))
+    return v
+end
 
 end # module Sort.Float
 

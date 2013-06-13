@@ -117,9 +117,10 @@ export
     Diagonal,
     InsertionSort,
     QuickSort,
+    DualPivotQuickSort,
     MergeSort,
-    TimeoutAsyncWork,
     TimSort,
+    TimeoutAsyncWork,
 
 # Ccall types
     Cchar,
