@@ -226,3 +226,92 @@ function readuntil(io::IOBuffer, delim::Uint8)
     end
     read(io, Array(Uint8, nb))
 end
+
+## mark io buffer
+
+type MarkedIO{T<:IO} <: IO
+    buffer::IOBuffer
+    io::T
+    reading_buffer::Bool
+end
+
+MarkedIO(buffer::IOBuffer, io::IO) = MarkedIO(buffer, io, false)
+
+function read(br::MarkedIO, ::Type{Uint8})
+    if br.reading_buffer 
+        if nb_available(br.buffer) >= 1
+            return read(br.buffer, Uint8) 
+        end
+        br.reading_buffer = false
+    end
+    a = read(br.io, Uint8)
+    write(br.buffer, a)
+    return a
+end
+
+function read{T}(br::MarkedIO, a::Array{T})
+    if br.reading_buffer
+        if !isbits(T)
+            return invoke(read, (IO, Array), br, a)
+        end
+        nb = length(a)*sizeof(T)
+        nba = nb_available(br.buffer)
+        if nba >= nb
+            return read(br.buffer, a)
+        elseif nba >= 1
+            a1 = pointer_to_array(pointer(a), nba)
+            read(br.buffer, a1)
+            a2 = pointer_to_array(pointer(a)+nba, nb-nba)
+            read(br.io, a2)
+            write(br.buffer, a2)
+            br.reading_buffer = false
+            return a
+        end
+        br.reading_buffer = false
+    end
+    read(br.io, a)
+    write(br.buffer, a)
+    a
+end
+
+function read(br::MarkedIO, args...)
+    if br.reading_buffer
+        return invoke(read, (IO, Any...), br, args...)
+    end
+    a = read(br.io, args...)
+    write(br.buffer, a)
+    a
+end
+
+function readline(br::MarkedIO)
+    if br.reading_buffer
+        return invoke(readline, (IO,), br)
+    end
+    a = readline(br.io)
+    write(br.buffer, a)
+    a
+end
+
+function readavailable(br::MarkedIO{AsyncStream})
+    if !br.reading_buffer
+        a = readavailable(br.io)
+        write(br.buffer, a)
+        return a
+    end
+
+    p = position(br.buffer)
+    seekend(br.buffer)
+    write(br.buffer, readavailable(br.io))
+    seek(br.buffer, p)
+    return bytestring(readall(br.buffer))   # readavailable returns a bytestring
+end
+
+mark(io::IO) = MarkedIO(IOBuffer(), io)
+
+function mark(f::Function, io::IO)
+    m = mark(io)
+    f(iob)
+end
+
+reset(m::MarkedIO) = (seekstart(m.buffer); m.reading_buffer = true)
+
