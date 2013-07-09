@@ -1058,6 +1058,7 @@ export
     mmap_stream_settings,
     msync,
     nb_available,
+    nb_writable,
     open,
     open_any_tcp_port,
     RawFD,

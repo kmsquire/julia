@@ -577,3 +577,7 @@ function connect(cb::Function,sock::NamedPipe,path::ASCIIString)
     sock.ccb = cb
     error("Unimplemented on this branch")
 end
+
+mark(x::AsyncStream) = mark(x.buffer)
+unmark(x::AsyncStream) = unmark(x.buffer)
+seekmark(x::AsyncStream) = seekmark(x.buffer)

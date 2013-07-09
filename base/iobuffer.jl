@@ -10,8 +10,9 @@ type IOBuffer <: IO
     size::Int
     maxsize::Int # pre-allocated, fixed array size
     ptr::Int # read (and maybe write) pointer
+    mark::Int # marker
     IOBuffer(data::Vector{Uint8},readable::Bool,writable::Bool,seekable::Bool,append::Bool,maxsize::Int) = 
-        new(data,readable,writable,seekable,append,length(data),maxsize,1)
+        new(data,readable,writable,seekable,append,length(data),maxsize,1,0)
 end
 
 function copy(b::IOBuffer) 
@@ -99,14 +100,16 @@ function truncate(io::IOBuffer, n::Integer)
     io.data[io.size+1:n] = 0
     io.size = n
     io.ptr = min(io.ptr, n+1)
+    if io.mark > io.ptr; io.mark = 0; end
     return true
 end
 function compact(io::IOBuffer)
     if !io.writable error("compact failed") end
-    if io.seekable error("compact failed") end
-    ccall(:memmove, Ptr{Void}, (Ptr{Void},Ptr{Void},Uint), io.data, pointer(io.data,io.ptr), nb_available(io))
-    io.size -= io.ptr - 1
-    io.ptr = 1
+    ptr = io.mark > 0 && io.mark < io.ptr ? io.mark : io.ptr
+    ccall(:memmove, Ptr{Void}, (Ptr{Void},Ptr{Void},Uint), io.data, pointer(io.data,ptr), nb_available(io))
+    io.size -= ptr - 1
+    io.ptr -= ptr - 1
+    if io.mark > 0; io.mark = max(io.mark-(ptr-1),0); end
     return true
 end
 function ensureroom(io::IOBuffer, nshort::Int)
@@ -143,6 +146,7 @@ function close(io::IOBuffer)
     io.size = 0
     io.maxsize = 0
     io.ptr = 1
+    io.mark = 0
     nothing
 end
 function bytestring(io::IOBuffer)
@@ -226,4 +230,15 @@ function readuntil(io::IOBuffer, delim::Uint8)
         nb = nb_available(io)
     end
     read(io, Array(Uint8, nb))
+end
+
+mark(io::IOBuffer) = (io.mark = io.ptr)
+unmark(io::IOBuffer) = (marked = io.mark > 0; io.mark = 0; marked)
+function seekmark(io::IOBuffer)
+    if io.mark > 0 && io.mark <= io.size
+        io.ptr = io.mark
+    else
+        error("No valid mark in ", io)
+    end
+    io.ptr
 end
