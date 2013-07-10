@@ -85,27 +85,33 @@ function mark(f::Function, br::BufferedReader)
         mark(br)
         ret = f(br)
     finally
-        reset(br)
+        seekmark(br)
         unmark(br)
     end
     ret
 end
 
-function mark(f::Function, io::IO, args...)
-    pos = -1
-    try
-        pos = position(io)
-    end
+function mark(f::Function, io::Union(IOStream, File), args...)
+    # For IOStream, File, attempt to reset the stream back
+    # to starting position at exit
+    pos = position(io)
 
     br = BufferedReader(io, args...)
     mark(br)
-    ret = f(br)
 
+    local ret
     try
+        ret = f(br)
+    finally
         seek(io, pos)
     end
-
     ret
+end
+
+function mark(f::Function, io::IO, args...)
+    br = BufferedReader(io, args...)
+    mark(br)
+    f(br)
 end
 
 seekmark(br::BufferedReader) = (if br.marked; seekstart(br.buffer); end; br.marked)
