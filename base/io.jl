@@ -244,8 +244,9 @@ type IOStream <: IO
     handle::Ptr{Void}
     ios::Array{Uint8,1}
     name::String
+    mark::Array{Int64,1}
 
-    IOStream(name::String, buf::Array{Uint8,1}) = new(pointer(buf), buf, name)
+    IOStream(name::String, buf::Array{Uint8,1}) = new(pointer(buf), buf, name, Int64[])
 end
 # TODO: delay adding finalizer, e.g. for memio with a small buffer, or
 # in the case where we takebuf it.
@@ -550,6 +551,37 @@ function skipchars(s::IOStream, pred; linecomment::Char=char(0xffffffff))
     end
     return s
 end
+
+# IOStream Marking
+
+# Note that these functions are duplicated in iobuffer.jl for
+# IOBuffer, but are required in both places because of ordering
+# requirements in sysimg.jl
+
+function mark(io::IOStream)
+    if ismarked(io) && position(io) < io.mark[end]
+        error("Attempted to place new mark before previous mark in $io")
+    end
+    push!(io.mark, position(io))
+    return endof(io.mark)
+end
+
+function unmark(io::IOStream, i::Int)
+    if !ismarked(io); error(io, " not marked"); end
+    if !isvalidmark(io, i); error("Invalid mark $i for stream $io"); end
+
+    # remove i and all later marks, and return the value of mark i
+    splice!(io.mark, i:endof(io.mark))[1]
+end
+
+function reset(io::IOStream, i::Int)
+    pos = io.mark[i]
+    seek(io, pos)
+    unmark(io, i)
+end
+
+ismarked(io::IOStream) = length(io.mark) > 0
+isvalidmark(io::IOStream, i::Int) = (1 <= i <= endof(io.mark))
 
 # BitArray I/O
 

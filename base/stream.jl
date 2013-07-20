@@ -47,6 +47,8 @@ for r in uv_req_types
 @eval const $(symbol("_sizeof_"*lowercase(string(r)))) = uv_sizeof_req($r)
 end
 
+nb_available(s::AsyncStream) = nb_available(s.buffer)
+
 function eof(s::AsyncStream)
     wait_readnb(s,1)
     !isopen(s) && nb_available(s.buffer)<=0
@@ -932,3 +934,8 @@ for (x,writable,unix_fd,c_symbol) in ((:STDIN,false,0,:jl_uv_stdin),(:STDOUT,tru
         end
     end
 end
+
+mark(x::AsyncStream)           = mark(x.buffer)
+unmark(x::AsyncStream, i::Int) = unmark(x.buffer, i)
+ismarked(x::AsyncStream)       = ismarked(x.buffer)
+reset(x::AsyncStream, i::Int)  = reset(x.buffer, i)

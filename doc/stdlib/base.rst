@@ -1570,6 +1570,31 @@ I/O
 
    Seek a stream relative to the current position.
 
+.. function:: mark(s)
+
+   Add a mark at the current position of stream ``s``.  Returns the mark token.
+
+   See also :func:`unmark`, :func:`reset`, :func:`ismarked`
+
+.. function:: unmark(s,m)
+
+   Remove mark ``m`` from stream ``s``.  Throws an error if ``m`` is not a valid mark.
+
+   See also :func:`mark`, :func:`reset`, :func:`ismarked`
+
+.. function:: reset(s,m)
+
+   Reset a stream ``s`` to point at mark ``m``.  The mark is
+   removed.  Throws an error if ``m`` is not a valid mark.
+
+   See also :func:`mark`, :func:`unmark`, :func:`ismarked`
+
+.. function:: ismarked(s)
+
+   Returns true if stream ``s`` contains a mark.
+
+   See also :func:`mark`, :func:`unmark`, :func:`reset`
+
 .. function:: eof(stream) -> Bool
 
    Tests whether an I/O stream is at end-of-file. If the stream is not yet

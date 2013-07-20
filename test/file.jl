@@ -215,6 +215,24 @@ close(s)
 A2=nothing; A3=nothing; A4=nothing; gc(); gc(); # cause munmap finalizer to run & free resources
 rm(fname)
 
+##############
+# mark/reset #
+##############
+
+s = open(file, "w")
+write(s, "Marked!\n")
+write(s, "Hello world!\n")
+close(s)
+s = open(file)
+m = mark(s)
+str = readline(s)
+@test beginswith(str, "Marked!")
+reset(s,m)
+str = readline(s)
+@test beginswith(str, "Marked!")
+@test_throws BoundsError reset(s,m)
+close(s)
+
 #######################################################################
 # This section tests temporary file and directory creation.           #
 #######################################################################
