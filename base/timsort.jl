@@ -421,7 +421,12 @@ function sort!(v::AbstractVector, lo::Int, hi::Int, ::TimSortAlg, o::Ordering)
         else
             if !issorted(run_range)
                 run_range = last(run_range):first(run_range)
-                reverse!(sub(v, run_range))
+                k = last(run_range)
+                for j = first(run_range):first(run_range)+(length(run_range)>>1)-1
+                    v[j],v[k] = v[k],v[j]
+                    k -= 1
+                end
+                #reverse!(sub(v, run_range))
             end
         end
         # Push this run onto the queue and merge if needed
