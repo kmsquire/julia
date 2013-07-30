@@ -1331,7 +1331,7 @@
    (pattern-lambda (typed_dict atypes . args)
 		   (if (and (length= atypes 3)
 			    (eq? (car atypes) '=>))
-		       `(call (curly (top Dict) ,(cadr atypes) ,(caddr atypes))
+		       `(call (curly (top Dict) ,(cadr atypes) ,(caddr atypes) (top Nothing))
 			      (tuple ,@(map cadr  args))
 			      (tuple ,@(map caddr args)))
 		       (error (string "invalid typed_dict syntax " atypes))))
@@ -1702,7 +1702,8 @@
 	   (label ,initlabl)
 	   (= ,result (call (curly (top Dict)
 				   (static_typeof ,onekey)
-				   (static_typeof ,oneval))))
+				   (static_typeof ,oneval)
+                                   (top Nothing))))
 	   ,(construct-loops (reverse loopranges))
 	   ,result)))))))
 
@@ -1728,7 +1729,7 @@
       `(block
 	,@(map make-assignment rs (map caddr ranges))
 	(local ,result)
-	(= ,result (call (curly (top Dict) ,(cadr atypes) ,(caddr atypes))))
+	(= ,result (call (curly (top Dict) ,(cadr atypes) ,(caddr atypes) (top Nothing))))
 	(scope-block
 	(block
 	 ,@(map (lambda (r) `(local ,r))
