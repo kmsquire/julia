@@ -827,6 +827,16 @@ Dequeues
 
    Insert an item at the given index.
 
+.. function:: delindex!(collection, index)
+
+   Remove the item at the given index, and return the modified collection. Subsequent items
+   are shifted down to fill the resulting gap.
+
+.. function:: delindex!(collection, itr)
+
+   Remove the items at the indices given by itr, and return the modified collection. Subsequent 
+   items are shifted down to fill the resulting gap.
+
 .. function:: splice!(collection, index, [replacement]) -> item
 
    Remove the item at the given index, and return the removed item. Subsequent items

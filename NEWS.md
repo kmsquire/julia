@@ -44,6 +44,9 @@ Library improvements
 
   * `rand` now supports arbitrary `Ranges` arguments ([#5059]).
 
+  * New function `delindex!` deletes a specified index or indices and
+    returns the updated collection
+
 Deprecated or removed
 ---------------------
 

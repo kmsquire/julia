@@ -692,6 +692,7 @@ export
     contains,
     count,
     delete!,
+    delindex!,
     eltype,
     empty!,
     endof,
