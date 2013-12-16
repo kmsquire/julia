@@ -1103,8 +1103,11 @@ function splice!(B::BitVector, r::Range1{Int}, ins::BitVector = _default_bit_spl
         throw(BoundsError())
     end
     if (i_f > n)
-        return append!(B, ins)
+        append!(B, ins)
+        return BitVector(0)
     end
+
+    v = B[r]  # TODO: change to a copy if/when subscripting becomes an ArrayView
 
     Bc = B.chunks
 
@@ -1129,9 +1132,114 @@ function splice!(B::BitVector, r::Range1{Int}, ins::BitVector = _default_bit_spl
         Bc[end] &= @_msk_end new_l
     end
 
-    return B
+    return v
 end
 splice!(B::BitVector, r::Range1{Int}, ins::AbstractVector{Bool}) = splice!(B, r, bitpack(ins))
+
+function delindex!(B::BitVector, i::Integer)
+    n = length(B)
+    if !(1 <= i <= n)
+        throw(BoundsError())
+    end
+
+    k, j = get_chunks_id(i)
+
+    msk_bef = _msk64 >>> (63 - j)
+    msk_aft = ~msk_bef
+    msk_bef >>>= 1
+
+    Bc = B.chunks
+
+    @inbounds begin
+        Bc[k] = (msk_bef & Bc[k]) | ((msk_aft & Bc[k]) >> 1)
+        if length(Bc) > k
+            Bc[k] |= (Bc[k + 1] << 63)
+        end
+
+        for t = k + 1 : length(Bc) - 1
+            Bc[t] = (Bc[t] >>> 1) | (Bc[t + 1] << 63)
+        end
+
+        l = @_mod64 length(B)
+
+        if l == 1
+            ccall(:jl_array_del_end, Void, (Any, Uint), Bc, 1)
+        elseif length(Bc) > k
+            Bc[end] >>>= 1
+        end
+    end
+
+    B.len -= 1
+
+    return B
+end
+
+function delindex!(B::BitVector, r::Range1{Int})
+    n = length(B)
+    i_f = first(r)
+    i_l = last(r)
+    if !(1 <= i_f && i_l <= n)
+        throw(BoundsError())
+    end
+
+    Bc = B.chunks
+
+    ldel = length(r)
+
+    new_l = length(B) - ldel
+    delta_k = num_bit_chunks(new_l) - length(Bc)
+
+    if delta_k > 0
+        ccall(:jl_array_grow_end, Void, (Any, Uint), Bc, delta_k)
+    end
+    copy_chunks(Bc, i_f+lins, Bc, i_l+1, n-i_l)
+    copy_chunks(Bc, i_f, ins.chunks, 1, lins)
+    if delta_k < 0
+        ccall(:jl_array_del_end, Void, (Any, Uint), Bc, -delta_k)
+    end
+
+    B.len = new_l
+
+    if new_l > 0
+        Bc[end] &= @_msk_end new_l
+    end
+
+    return B
+end
+
+function delindex!(B::BitVector, idxs)
+    n = length(B)
+    s = start(inds)
+    done(inds, s) && return B
+
+    Bc = B.chunks
+
+    (p, s) = next(inds, s)
+    q = p+1
+    while !done(inds, s)
+        (i,s) = next(inds, s)
+        !(q <= i <= n) && throw(BoundsError())
+
+        new_l = length(B) - ldel
+        delta_k = num_bit_chunks(new_l) - length(Bc)
+
+    if delta_k > 0
+        ccall(:jl_array_grow_end, Void, (Any, Uint), Bc, delta_k)
+    end
+    copy_chunks(Bc, i_f+lins, Bc, i_l+1, n-i_l)
+    copy_chunks(Bc, i_f, ins.chunks, 1, lins)
+    if delta_k < 0
+        ccall(:jl_array_del_end, Void, (Any, Uint), Bc, -delta_k)
+    end
+
+    B.len = new_l
+
+    if new_l > 0
+        Bc[end] &= @_msk_end new_l
+    end
+
+    return B
+end
 
 function empty!(B::BitVector)
     ccall(:jl_array_del_end, Void, (Any, Uint), B.chunks, length(B.chunks))
