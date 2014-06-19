@@ -2111,19 +2111,19 @@ function _findmax(a, ::Colon)
     if y === nothing
         throw(ArgumentError("collection must be non-empty"))
     end
-    (mi, m), s = y
-    i = mi
-    while true
+    (maxidx, max), s = y
+    while !isnan(max)
         y = iterate(p, s)
         y === nothing && break
-        m != m && break
-        (i, ai), s = y
-        if ai != ai || isless(m, ai)
-            m = ai
-            mi = i
+
+        (idx, elem), s = y
+
+        if isnan(elem) || isless(max, elem)
+            max = elem
+            maxidx = idx
         end
     end
-    return (m, mi)
+    return (max, maxidx)
 end
 
 """
@@ -2156,20 +2156,75 @@ function _findmin(a, ::Colon)
     if y === nothing
         throw(ArgumentError("collection must be non-empty"))
     end
-    (mi, m), s = y
-    i = mi
+    (minidx, min), s = y
+    while !isnan(min)
+        y = iterate(p, s)
+        y === nothing && break
+
+        (idx, elem), s = y
+
+        if isnan(elem) || isless(elem, min)
+            min = elem
+            minidx = idx
+        end
+    end
+    return (min, minidx)
+end
+
+"""
+    findextrema(itr) -> ((minindex, xmin), (maxindex, xmax))
+
+Return the maximum element of the collection `itr` and its index. If there are multiple
+maximal elements, then the first one will be returned.
+If any data element is `NaN`, this element is returned, in line with `max` and `min`.
+
+The collection must not be empty.
+
+# Examples
+```jldoctest
+julia> findextrema([8,0.1,-9,pi])
+((3, -9.0), (1, 8.0))
+
+julia> findextrema([1,7,7,6])
+((1, 1), (2, 7))
+
+julia> findextrema([1,7,7,NaN])
+((4, NaN), (4, NaN))
+```
+"""
+findextrema(a) = _findextrema(a, :)
+
+function _findextrema(a, ::Colon)
+    p = pairs(a)
+    y = iterate(p)
+    if y === nothing
+        throw(ArgumentError("collection must be non-empty"))
+    end
+
+    (minidx, min), s = y
+    maxidx, max = minidx, min
+
     while true
         y = iterate(p, s)
         y === nothing && break
-        m != m && break
-        (i, ai), s = y
-        if ai != ai || isless(ai, m)
-            m = ai
-            mi = i
+
+        (idx, elem), s = y
+
+        if isnan(elem)
+            min = max = elem
+            minidx = maxidx = idx
+            break
+        elseif isless(max, elem)
+            max = elem
+            maxidx = idx
+        elseif isless(elem, min)
+            min = elem
+            minidx = idx
         end
     end
-    return (m, mi)
+    return ((minidx, min), (maxidx, max))
 end
+
 
 """
     argmax(itr) -> Integer
@@ -2193,6 +2248,7 @@ julia> argmax([1,7,7,NaN])
 """
 argmax(a) = findmax(a)[2]
 
+
 """
     argmin(itr) -> Integer
 
@@ -2214,6 +2270,31 @@ julia> argmin([7,1,1,NaN])
 ```
 """
 argmin(a) = findmin(a)[2]
+
+
+"""
+    argextrema(itr) -> (Int, Int)
+
+Return the index of the minimum element in a collection. If there are multiple minimal
+elements, then the first one will be returned.
+If any data element is `NaN`, the index of this element is returned, in line with
+`max` and `min`.
+
+The collection must not be empty.
+
+# Examples
+```jldoctest
+julia> argextrema([8,0.1,-9,pi])
+(3, 1)
+
+julia> argextrema([7,1,1,6])
+(2, 1)
+
+julia> argextrema([7,1,1,NaN])
+(4, 4)
+```
+"""
+argextrema(a) = (x = findextrema(a); (x[1][1], x[2][1]))
 
 # similar to Matlab's ismember
 """

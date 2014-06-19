@@ -578,12 +578,16 @@ end
 @testset "findmin findmax argmin argmax" begin
     @test argmax([10,12,9,11]) == 2
     @test argmin([10,12,9,11]) == 3
+    @test argextrema([10,12,9,11]) == (3,2)
     @test findmin([NaN,3.2,1.8]) === (NaN,1)
     @test findmax([NaN,3.2,1.8]) === (NaN,1)
+    @test findextrema([NaN,3.2,1.8]) == ((NaN,1),(NaN,1))
     @test findmin([NaN,3.2,1.8,NaN]) === (NaN,1)
     @test findmax([NaN,3.2,1.8,NaN]) === (NaN,1)
+    @test findextrema([NaN,3.2,1.8]) == ((NaN,1),(NaN,1))
     @test findmin([3.2,1.8,NaN,2.0]) === (NaN,3)
     @test findmax([3.2,1.8,NaN,2.0]) === (NaN,3)
+    @test findextrema([3.2,1.8,NaN,2.0]) == ((NaN,3),(NaN,3))
 
     #14085
     @test findmax(4:9) == (9,6)
