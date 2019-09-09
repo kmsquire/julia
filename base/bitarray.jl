@@ -1571,6 +1571,8 @@ function findmin(a::BitArray)
     return (m, @inbounds keys(a)[mi])
 end
 
+findextrema(a::BitArray) = (findmin(a), findmax(a))
+
 # findall helper functions
 # Generic case (>2 dimensions)
 function allindices!(I, B::BitArray)

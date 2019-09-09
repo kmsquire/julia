@@ -4,14 +4,12 @@
 
 # for reductions that expand 0 dims to 1
 reduced_index(i::OneTo) = OneTo(1)
-reduced_index(i::Union{Slice, IdentityUnitRange}) = first(i):first(i)
+reduced_index(i::Union{Slice,IdentityUnitRange}) = first(i):first(i)
 reduced_index(i::AbstractUnitRange) =
-    throw(ArgumentError(
-"""
+    throw(ArgumentError("""
 No method is implemented for reducing index range of type $typeof(i). Please implement
 reduced_index for this index type or report this as an issue.
-"""
-    ))
+"""))
 reduced_indices(a::AbstractArray, region) = reduced_indices(axes(a), region)
 
 # for reductions that keep 0 dims as 0
@@ -22,7 +20,7 @@ function reduced_indices(inds::Indices{N}, d::Int) where N
     if d == 1
         return (reduced_index(inds[1]), tail(inds)...)
     elseif 1 < d <= N
-        return tuple(inds[1:d-1]..., oftype(inds[d], reduced_index(inds[d])), inds[d+1:N]...)::typeof(inds)
+        return tuple(inds[1:d - 1]..., oftype(inds[d], reduced_index(inds[d])), inds[d + 1:N]...)::typeof(inds)
     else
         return inds
     end
@@ -36,7 +34,7 @@ function reduced_indices0(inds::Indices{N}, d::Int) where N
         if d == 1
             return (rd, tail(inds)...)
         else
-            return tuple(inds[1:d-1]..., oftype(inds[d], rd), inds[d+1:N]...)::typeof(inds)
+            return tuple(inds[1:d - 1]..., oftype(inds[d], rd), inds[d + 1:N]...)::typeof(inds)
         end
     else
         return inds
@@ -89,7 +87,7 @@ for (Op, initval) in ((:(typeof(&)), true), (:(typeof(|)), false))
 end
 
 # reducedim_initarray is called by
-reducedim_initarray(A::AbstractArray, region, init, ::Type{R}) where {R} = fill!(similar(A,R,reduced_indices(A,region)), init)
+reducedim_initarray(A::AbstractArray, region, init, ::Type{R}) where {R} = fill!(similar(A, R, reduced_indices(A, region)), init)
 reducedim_initarray(A::AbstractArray, region, init::T) where {T} = reducedim_initarray(A, region, init, T)
 
 # TODO: better way to handle reducedim initialization
@@ -100,7 +98,7 @@ promote_union(T::Union) = promote_type(promote_union(T.a), promote_union(T.b))
 promote_union(T) = T
 
 _realtype(::Type{<:Complex}) = Real
-_realtype(::Type{Complex{T}}) where T<:Real = T
+_realtype(::Type{Complex{T}}) where T <: Real = T
 _realtype(T::Type) = T
 _realtype(::Union{typeof(abs),typeof(abs2)}, T) = _realtype(T)
 _realtype(::Any, T) = T
@@ -132,7 +130,7 @@ for (f1, f2, initval) in ((:min, :max, :Inf), (:max, :min, :(-Inf)))
         ri = reduced_indices(A, region)
 
         # Next, throw if reduction is over a region with length zero
-        any(i -> isempty(axes(A, i)), region) && _empty_reduce_error()
+        any(i->isempty(axes(A, i)), region) && _empty_reduce_error()
 
         # Make a view of the first slice of the region
         A1 = view(A, ri...)
@@ -162,10 +160,8 @@ reducedim_init(f, op::typeof(|), A::AbstractArray, region) = reducedim_initarray
 # specialize to make initialization more efficient for common cases
 
 let
-    BitIntFloat = Union{BitInteger, IEEEFloat}
-    T = Union{
-        [AbstractArray{t} for t in uniontypes(BitIntFloat)]...,
-        [AbstractArray{Complex{t}} for t in uniontypes(BitIntFloat)]...}
+    BitIntFloat = Union{BitInteger,IEEEFloat}
+    T = Union{[AbstractArray{t} for t in uniontypes(BitIntFloat)]...,[AbstractArray{Complex{t}} for t in uniontypes(BitIntFloat)]...}
 
     global function reducedim_init(f, op::Union{typeof(+),typeof(add_sum)}, A::T, region)
         z = zero(f(zero(eltype(A))))
@@ -228,21 +224,21 @@ end
 _firstreducedslice(::Tuple{}, a::Tuple{}) = ()
 _firstreducedslice(::Tuple, ::Tuple{}) = ()
 @inline _firstreducedslice(::Tuple{}, a::Tuple) = (_firstslice(a[1]), _firstreducedslice((), tail(a))...)
-@inline _firstreducedslice(r::Tuple, a::Tuple) = (length(r[1])==1 ? _firstslice(a[1]) : r[1], _firstreducedslice(tail(r), tail(a))...)
+@inline _firstreducedslice(r::Tuple, a::Tuple) = (length(r[1]) == 1 ? _firstslice(a[1]) : r[1], _firstreducedslice(tail(r), tail(a))...)
 _firstslice(i::OneTo) = OneTo(1)
 _firstslice(i::Slice) = Slice(_firstslice(i.indices))
 _firstslice(i) = i[firstindex(i):firstindex(i)]
 
 function _mapreducedim!(f, op, R::AbstractArray, A::AbstractArray)
-    lsiz = check_reducedims(R,A)
+    lsiz = check_reducedims(R, A)
     isempty(A) && return R
 
     if has_fast_linear_indexing(A) && lsiz > 16
         # use mapreduce_impl, which is probably better tuned to achieve higher performance
         nslices = div(length(A), lsiz)
-        ibase = first(LinearIndices(A))-1
+        ibase = first(LinearIndices(A)) - 1
         for i = 1:nslices
-            @inbounds R[i] = op(R[i], mapreduce_impl(f, op, A, ibase+1, ibase+lsiz))
+            @inbounds R[i] = op(R[i], mapreduce_impl(f, op, A, ibase + 1, ibase + lsiz))
             ibase += lsiz
         end
         return R
@@ -304,7 +300,7 @@ julia> mapreduce(isodd, |, a, dims=1)
  1  1  1  1
 ```
 """
-mapreduce(f, op, A::AbstractArray; dims=:, kw...) = _mapreduce_dim(f, op, kw.data, A, dims)
+mapreduce(f, op, A::AbstractArray; dims = :, kw...) = _mapreduce_dim(f, op, kw.data, A, dims)
 mapreduce(f, op, A::AbstractArray...; kw...) = reduce(op, map(f, A...); kw...)
 
 _mapreduce_dim(f, op, nt::NamedTuple{(:init,)}, A::AbstractArray, ::Colon) = mapfoldl(f, op, A; nt...)
@@ -649,8 +645,8 @@ for (fname, _fname, op) in [(:sum,     :_sum,     :add_sum), (:prod,    :_prod, 
                             (:maximum, :_maximum, :max),     (:minimum, :_minimum, :min)]
     @eval begin
         # User-facing methods with keyword arguments
-        @inline ($fname)(a::AbstractArray; dims=:) = ($_fname)(a, dims)
-        @inline ($fname)(f, a::AbstractArray; dims=:) = ($_fname)(f, a, dims)
+        @inline ($fname)(a::AbstractArray; dims = :) = ($_fname)(a, dims)
+        @inline ($fname)(f, a::AbstractArray; dims = :) = ($_fname)(f, a, dims)
 
         # Underlying implementations using dispatch
         ($_fname)(a, ::Colon) = ($_fname)(identity, a, :)
@@ -658,11 +654,11 @@ for (fname, _fname, op) in [(:sum,     :_sum,     :add_sum), (:prod,    :_prod, 
     end
 end
 
-any(a::AbstractArray; dims=:)              = _any(a, dims)
-any(f::Function, a::AbstractArray; dims=:) = _any(f, a, dims)
+any(a::AbstractArray; dims = :)              = _any(a, dims)
+any(f::Function, a::AbstractArray; dims = :) = _any(f, a, dims)
 _any(a, ::Colon)                           = _any(identity, a, :)
-all(a::AbstractArray; dims=:)              = _all(a, dims)
-all(f::Function, a::AbstractArray; dims=:) = _all(f, a, dims)
+all(a::AbstractArray; dims = :)              = _all(a, dims)
+all(f::Function, a::AbstractArray; dims = :) = _all(f, a, dims)
 _all(a, ::Colon)                           = _all(identity, a, :)
 
 for (fname, op) in [(:sum, :add_sum), (:prod, :mul_prod),
@@ -671,12 +667,12 @@ for (fname, op) in [(:sum, :add_sum), (:prod, :mul_prod),
     fname! = Symbol(fname, '!')
     _fname = Symbol('_', fname)
     @eval begin
-        $(fname!)(f::Function, r::AbstractArray, A::AbstractArray; init::Bool=true) =
+        $(fname!)(f::Function, r::AbstractArray, A::AbstractArray; init::Bool = true) =
             mapreducedim!(f, $(op), initarray!(r, $(op), init, A), A)
-        $(fname!)(r::AbstractArray, A::AbstractArray; init::Bool=true) = $(fname!)(identity, r, A; init=init)
+        $(fname!)(r::AbstractArray, A::AbstractArray; init::Bool = true) = $(fname!)(identity, r, A; init = init)
 
         $(_fname)(A, dims)    = $(_fname)(identity, A, dims)
-        $(_fname)(f, A, dims) = mapreduce(f, $(op), A, dims=dims)
+        $(_fname)(f, A, dims) = mapreduce(f, $(op), A, dims = dims)
     end
 end
 
@@ -702,7 +698,7 @@ function findminmax!(f, Rval, Rind, A::AbstractArray{T,N}) where {T,N}
             IR = Broadcast.newindex(IA, keep, Idefault)
             tmpRv = Rval[i1,IR]
             tmpRi = Rind[i1,IR]
-            for i in axes(A,1)
+                for i in axes(A, 1)
                 k, kss = y::Tuple
                 tmpAv = A[i,IA]
                 if tmpRi == zi || (tmpRv == tmpRv && (tmpAv != tmpAv || f(tmpAv, tmpRv)))
@@ -712,12 +708,12 @@ function findminmax!(f, Rval, Rind, A::AbstractArray{T,N}) where {T,N}
                 y = iterate(ks, kss)
             end
             Rval[i1,IR] = tmpRv
-            Rind[i1,IR] = tmpRi
+    Rind[i1,IR] = tmpRi
         end
     else
         @inbounds for IA in CartesianIndices(indsAt)
             IR = Broadcast.newindex(IA, keep, Idefault)
-            for i in axes(A, 1)
+                for i in axes(A, 1)
                 k, kss = y::Tuple
                 tmpAv = A[i,IA]
                 tmpRv = Rval[i,IR]
@@ -728,7 +724,7 @@ function findminmax!(f, Rval, Rind, A::AbstractArray{T,N}) where {T,N}
                 end
                 y = iterate(ks, kss)
             end
-        end
+end
     end
     Rval, Rind
 end
@@ -741,8 +737,8 @@ dimensions of `rval` and `rind`, and store the results in `rval` and `rind`.
 `NaN` is treated as less than all other values.
 """
 function findmin!(rval::AbstractArray, rind::AbstractArray, A::AbstractArray;
-                  init::Bool=true)
-    findminmax!(isless, init && !isempty(A) ? fill!(rval, first(A)) : rval, fill!(rind,zero(eltype(keys(A)))), A)
+                  init::Bool = true)
+    findminmax!(isless, init && !isempty(A) ? fill!(rval, first(A)) : rval, fill!(rind, zero(eltype(keys(A)))), A)
 end
 
 """
@@ -765,7 +761,7 @@ julia> findmin(A, dims=2)
 ([1.0; 3.0], CartesianIndex{2}[CartesianIndex(1, 1); CartesianIndex(2, 1)])
 ```
 """
-findmin(A::AbstractArray; dims=:) = _findmin(A, dims)
+findmin(A::AbstractArray; dims = :) = _findmin(A, dims)
 
 function _findmin(A, region)
     ri = reduced_indices0(A, region)
@@ -780,7 +776,7 @@ function _findmin(A, region)
     end
 end
 
-isgreater(a, b) = isless(b,a)
+isgreater(a, b) = isless(b, a)
 
 """
     findmax!(rval, rind, A) -> (maxval, index)
@@ -790,8 +786,8 @@ dimensions of `rval` and `rind`, and store the results in `rval` and `rind`.
 `NaN` is treated as greater than all other values.
 """
 function findmax!(rval::AbstractArray, rind::AbstractArray, A::AbstractArray;
-                  init::Bool=true)
-    findminmax!(isgreater, init && !isempty(A) ? fill!(rval, first(A)) : rval, fill!(rind,zero(eltype(keys(A)))), A)
+                  init::Bool = true)
+    findminmax!(isgreater, init && !isempty(A) ? fill!(rval, first(A)) : rval, fill!(rind, zero(eltype(keys(A)))), A)
 end
 
 """
@@ -814,7 +810,7 @@ julia> findmax(A, dims=2)
 ([2.0; 4.0], CartesianIndex{2}[CartesianIndex(1, 2); CartesianIndex(2, 2)])
 ```
 """
-findmax(A::AbstractArray; dims=:) = _findmax(A, dims)
+findmax(A::AbstractArray; dims = :) = _findmax(A, dims)
 
 function _findmax(A, region)
     ri = reduced_indices0(A, region)
@@ -830,6 +826,28 @@ function _findmax(A, region)
 end
 
 reducedim1(R, A) = length(axes1(R)) == 1
+
+"""
+findextrema(A; dims) -> (maxval, index)
+
+For an array input, returns the value and index of the maximum over the given dimensions.
+`NaN` is treated as greater than all other values.
+
+# Examples
+```jldoctest
+julia> A = [1.0 2; 3 4]
+2×2 Array{Float64,2}:
+ 1.0  2.0
+ 3.0  4.0
+
+julia> findextrema(A, dims=1)
+([3.0 4.0], CartesianIndex{2}[CartesianIndex(2, 1) CartesianIndex(2, 2)])
+
+julia> findextrema(A, dims=2)
+([2.0; 4.0], CartesianIndex{2}[CartesianIndex(1, 2); CartesianIndex(2, 2)])
+```
+"""
+findextrema(A::AbstractArray; dims = :) = (_findmin(A, dims), _findmax(A, dims))
 
 """
     argmin(A; dims) -> indices
@@ -854,7 +872,7 @@ julia> argmin(A, dims=2)
  CartesianIndex(2, 1)
 ```
 """
-argmin(A::AbstractArray; dims=:) = findmin(A; dims=dims)[2]
+argmin(A::AbstractArray; dims = :) = findmin(A; dims = dims)[2]
 
 """
     argmax(A; dims) -> indices
@@ -879,4 +897,4 @@ julia> argmax(A, dims=2)
  CartesianIndex(2, 2)
 ```
 """
-argmax(A::AbstractArray; dims=:) = findmax(A; dims=dims)[2]
+argmax(A::AbstractArray; dims = :) = findmax(A; dims = dims)[2]
